@@ -4,9 +4,7 @@ set -eo pipefail
 
 source "$PLUGIN_CORE_AVAILABLE_PATH/common/functions"
 source "$PLUGIN_CORE_AVAILABLE_PATH/config/functions"
-source "$PLUGIN_CORE_AVAILABLE_PATH/docker-options/functions"
 source "$PLUGIN_CORE_AVAILABLE_PATH/ps/functions"
-source "$PLUGIN_CORE_AVAILABLE_PATH/storage/functions"
 
 tailscale_up() {
   [[ -z "$APP" ]] && dokku_log_fail "Please specify an app to run the command on"
@@ -25,8 +23,10 @@ tailscale_up() {
   # correct hostname. The container will still be put on the tailnet without a
   # restart, but with the wrong hostname.
   dokku_log_info1 "settings docker-option for ${APP} to --hostname=${APP}"
-  phases="$(get_phases 'deploy')"
-  add_passed_docker_option phases[@] "--hostname ${APP}"
+  # Use the public CLI: the docker-options shell library was removed from Dokku
+  # core. Remove first so repeated `tailscale:up` calls don't stack duplicates.
+  dokku docker-options:remove "$APP" deploy "--hostname ${APP}" >/dev/null 2>&1 || true
+  dokku docker-options:add "$APP" deploy "--hostname ${APP}"
 
   # create state dir
   local storage_directory="${DOKKU_LIB_ROOT}/data/tailscale/${APP}"
@@ -57,6 +57,7 @@ tailscale_down() {
   ( ! tailscale_is_enabled ) && return
   tailscale_detach
   rm -f "${DOKKU_LIB_ROOT}/data/tailscale/${APP}/DOKKU_ENABLED"
+  dokku docker-options:remove "$APP" deploy "--hostname ${APP}" >/dev/null 2>&1 || true
 }
 
 tailscale_is_enabled() {
