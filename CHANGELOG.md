@@ -12,14 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reusable key that adds `tag:dokku` machines to the tailnet). It is now read
   from `${DOKKU_LIB_ROOT}/data/tailscale/.authkey` (mode 600, dokku user only).
   Global `TS_AUTHKEY` is still honoured as a fallback with a deprecation
-  warning. Migrate with `tailscale:set-key`, then
-  `dokku config:unset --global TS_AUTHKEY`, then rotate the old key.
+  warning. Migrate with a new key and `tailscale:set-key`, then
+  `dokku config:unset --global TS_AUTHKEY`, `dokku ps:restart --all`, then
+  revoke the old key.
+- The auth key is no longer written to trace output (`DOKKU_TRACE`) by
+  `tailscale:up` or the post-deploy attach, and is passed to `docker run`
+  through the environment instead of its argv.
 
 ### Added
 - `tailscale:set-key` command: reads the auth key from stdin, validates the
   `tskey-` prefix and writes the key file atomically with mode 600.
 - `tailscale:key-status` command: shows whether the key comes from the key
   file, the deprecated global config, or is not set (never prints the key).
+  Also warns when a global `TS_AUTHKEY` is left over next to the key file, and
+  when the key file exists but is unreadable.
+- `tailscale:set-key` accepts non-`tskey-` keys (e.g. Headscale) when
+  `TS_LOGIN_SERVER` is set.
 
 ### Fixed
 - Compatibility with current Dokku (verified on 0.38.31): stop sourcing the
