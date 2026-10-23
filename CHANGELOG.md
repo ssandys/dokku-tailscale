@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from `${DOKKU_LIB_ROOT}/data/tailscale/.authkey` (mode 600, dokku user only).
   Global `TS_AUTHKEY` is still honoured as a fallback with a deprecation
   warning. Migrate with a new key and `tailscale:set-key`, then
-  `dokku config:unset --global TS_AUTHKEY`, `dokku ps:restart --all`, then
-  revoke the old key.
+  `dokku config:unset --global TS_AUTHKEY`, `dokku ps:rebuild --all` (restart
+  reuses the existing release image, which still contains the old global
+  config; rebuild creates a new release without it), then revoke the old key.
 - The auth key is no longer written to trace output (`DOKKU_TRACE`) by
   `tailscale:up` or the post-deploy attach, and is passed to `docker run`
   through the environment instead of its argv.

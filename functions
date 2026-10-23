@@ -63,7 +63,7 @@ tailscale_authkey_global_warning() {
 }
 
 tailscale_authkey_leftover_warning() {
-  echo "global TS_AUTHKEY is still set and visible to every app: run dokku config:unset --global TS_AUTHKEY, then dokku ps:restart --all"
+  echo "global TS_AUTHKEY is still set and visible to every app: run dokku config:unset --global TS_AUTHKEY, then dokku ps:rebuild --all"
 }
 
 tailscale_authkey() {
@@ -140,7 +140,7 @@ tailscale_set_key() {
 
   dokku_log_info1 "Stored Tailscale auth key in ${key_file}"
   if [[ -n "$(tailscale_global_authkey)" ]]; then
-    dokku_log_warn "TS_AUTHKEY is still set in global config and visible to every app. Remove it with: dokku config:unset --global TS_AUTHKEY, then dokku ps:restart --all"
+    dokku_log_warn "TS_AUTHKEY is still set in global config and visible to every app. Remove it with: dokku config:unset --global TS_AUTHKEY, then dokku ps:rebuild --all"
     dokku_log_warn "Then revoke that key in the Tailscale admin console, since apps could read it"
   fi
 }

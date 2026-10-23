@@ -60,8 +60,9 @@ deprecation warning), but you should move it:
 2. Store the new key: `ssh dokku@host tailscale:set-key < key.txt`
 3. Remove the old key from global config:
    `dokku config:unset --global TS_AUTHKEY`
-4. Restart apps: `dokku ps:restart --all`. Running containers keep the old
-   global environment until they are restarted.
+4. Rebuild apps: `dokku ps:rebuild --all`. Restart reuses the existing release
+   image, which still contains the old global config; rebuild creates a new
+   release without it.
 5. Revoke the old key in the Tailscale admin console.
 6. Confirm with `dokku tailscale:key-status`. It should say just `key file`,
    with no warning about a leftover global `TS_AUTHKEY`.
