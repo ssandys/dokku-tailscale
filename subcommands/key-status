@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -eo pipefail
+[[ $DOKKU_TRACE ]] && set -x
+
+source "$PLUGIN_AVAILABLE_PATH/tailscale/functions"
+
+cmd-tailscale-key-status() {
+  declare desc="shows where the tailscale auth key comes from"
+  declare cmd="tailscale:key-status"
+  [[ "$1" == "$cmd" ]] && shift 1
+
+  # Never trace this command: a global TS_AUTHKEY would end up in the trace.
+  set +x
+  tailscale_key_status
+}
+
+cmd-tailscale-key-status "$@"

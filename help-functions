@@ -10,9 +10,13 @@ cmd-tailscale-help() {
   local plugin_description_long="$(cat <<desc
 Run tailscale sidecar for an app
 
-This plugin expects global configuration values set for the oauth key:
+Store the Tailscale auth key (or OAuth client secret) on the host, readable
+only by the dokku user. The key is read from stdin, never from arguments:
 
-  dokku config:set --global TS_AUTHKEY=tskey-client-00000000000000000-000000000000000000000000000000000
+  ssh dokku@host tailscale:set-key < key.txt
+
+Do not use dokku config:set --global TS_AUTHKEY: global config is visible to
+every app. It is still read as a deprecated fallback.
 
 If adding to an existing app, you will need to restart the app after running tailscale:up.
 desc
@@ -38,5 +42,7 @@ fn-help-content() {
     tailscale:up <app>, Starts the tailscale machine with the name of the app
     tailscale:down <app>, Stops the tailscale sidecar
     tailscale:serve <app> [<port>|stop], Starts or stops serving the provided port over https
+    tailscale:set-key, Stores the auth key read from stdin (e.g. tailscale:set-key < key.txt)
+    tailscale:key-status, Shows where the auth key comes from (never prints the key)
 help_content
 }

@@ -10,11 +10,57 @@ dokku plugin:install https://github.com/andrew-womeldorf/dokku-tailscale.git tai
 
 ## Prepare
 
-Set an auth key or oauth client key to the global config:
+### Storing the auth key
+
+Store your Tailscale auth key (or OAuth client secret) with
+`tailscale:set-key`. The key is read from **stdin** — never pass it as an
+argument, so it stays out of process lists and shell history:
 
 ```sh
-dokku config:set --global TS_AUTHKEY=tskey-client-00000000000000000-000000000000000000000000000000000
+# from a file
+ssh dokku@host tailscale:set-key < key.txt
+
+# or from a variable
+echo "$TS_KEY" | ssh dokku@host tailscale:set-key
+
+# or on the host itself (prompts without echoing)
+dokku tailscale:set-key
 ```
+
+The key must start with `tskey-`. It is written atomically to
+`/var/lib/dokku/data/tailscale/.authkey` (`${DOKKU_LIB_ROOT}/data/tailscale`)
+with mode `600`, readable only by the `dokku` user, and is never printed.
+
+Check where the key comes from (the key itself is never shown):
+
+```sh
+dokku tailscale:key-status
+```
+
+The key is passed only to the `ts-<app>` sidecar container (as `TS_AUTHKEY`),
+not to your app containers. Anyone with root/docker access on the host can
+still see it with `docker inspect ts-<app>`.
+
+#### Migrating from `config:set --global TS_AUTHKEY`
+
+Earlier versions told you to put the key in Dokku's global config. Dokku
+injects global config into **every app container's environment**, so any app
+on the host could read a reusable, pre-approved key that adds `tag:dokku`
+machines to your tailnet. The global value is still used as a fallback (with a
+deprecation warning), but you should move it:
+
+1. Store the key in the key file (ideally a newly generated key):
+   `ssh dokku@host tailscale:set-key < key.txt`
+2. Remove it from global config:
+   `dokku config:unset --global TS_AUTHKEY`
+3. Rotate the old key: revoke it in the Tailscale admin console
+   (Settings → Keys) and use a new one, because it was exposed to every app's
+   environment. Re-run step 1 with the new key if you haven't already.
+4. Confirm with `dokku tailscale:key-status` — it should say `key file`.
+
+App containers that are already running keep the old value in their
+environment until they are restarted or redeployed, which is another reason to
+rotate the key.
 
 &nbsp;
 

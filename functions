@@ -6,12 +6,112 @@ source "$PLUGIN_CORE_AVAILABLE_PATH/common/functions"
 source "$PLUGIN_CORE_AVAILABLE_PATH/config/functions"
 source "$PLUGIN_CORE_AVAILABLE_PATH/ps/functions"
 
+tailscale_authkey_dir() {
+  echo "${DOKKU_LIB_ROOT}/data/tailscale"
+}
+
+tailscale_authkey_file() {
+  echo "$(tailscale_authkey_dir)/.authkey"
+}
+
+tailscale_authkey_source() {
+  if [[ -s "$(tailscale_authkey_file)" ]]; then
+    echo "file"
+  elif [[ -n "$(config_get --global TS_AUTHKEY)" ]]; then
+    echo "global"
+  else
+    echo "none"
+  fi
+}
+
+tailscale_authkey_missing_message() {
+  echo "No Tailscale auth key set. Store one with: dokku tailscale:set-key < key.txt"
+}
+
+tailscale_authkey_global_warning() {
+  echo "TS_AUTHKEY is read from global config, which is visible to every app; run tailscale:set-key, then dokku config:unset --global TS_AUTHKEY"
+}
+
+tailscale_authkey() {
+  # Print the auth key on stdout (callers capture it). The key file wins; the
+  # global config is a deprecated fallback because Dokku injects global config
+  # into every app container's environment.
+  local key_file
+  key_file="$(tailscale_authkey_file)"
+  if [[ -s "$key_file" ]]; then
+    local key
+    key="$(<"$key_file")"
+    echo "$key"
+    return 0
+  fi
+
+  local global_key
+  global_key="$(config_get --global TS_AUTHKEY)"
+  if [[ -n "$global_key" ]]; then
+    # stderr explicitly: stdout is captured as the key by callers
+    dokku_log_warn "$(tailscale_authkey_global_warning)" >&2
+    echo "$global_key"
+  fi
+}
+
+tailscale_set_key() {
+  local key_dir key_file key tmp_file
+
+  key_dir="$(tailscale_authkey_dir)"
+  key_file="$(tailscale_authkey_file)"
+
+  if [[ -t 0 ]]; then
+    read -r -s -p "Tailscale auth key: " key || true
+    echo >&2
+  else
+    key="$(cat)"
+  fi
+
+  # trim surrounding whitespace (including newlines)
+  key="${key#"${key%%[![:space:]]*}"}"
+  key="${key%"${key##*[![:space:]]}"}"
+
+  [[ -z "$key" ]] && dokku_log_fail "No key read from stdin. Usage: dokku tailscale:set-key < key.txt"
+  [[ "$key" != tskey-* ]] && dokku_log_fail "That does not look like a Tailscale auth key (expected it to start with tskey-); nothing was stored"
+  [[ "$key" =~ [[:space:]] ]] && dokku_log_fail "The key must be a single line with no spaces; nothing was stored"
+
+  umask 077
+  if [[ ! -d "$key_dir" ]]; then
+    mkdir -p "$key_dir"
+    [[ "$(id -u)" == "0" ]] && chown dokku:dokku "$key_dir"
+  fi
+
+  tmp_file="$(mktemp "${key_dir}/.authkey.XXXXXX")"
+  # shellcheck disable=SC2064
+  trap "rm -f '${tmp_file}'" EXIT
+  printf '%s\n' "$key" >"$tmp_file"
+  chmod 600 "$tmp_file"
+  [[ "$(id -u)" == "0" ]] && chown dokku:dokku "$tmp_file"
+  mv -f "$tmp_file" "$key_file"
+  trap - EXIT
+
+  dokku_log_info1 "Stored Tailscale auth key in ${key_file}"
+  if [[ -n "$(config_get --global TS_AUTHKEY)" ]]; then
+    dokku_log_warn "TS_AUTHKEY is still set in global config and visible to every app. Remove it with: dokku config:unset --global TS_AUTHKEY"
+    dokku_log_warn "Then rotate that key in the Tailscale admin console, since apps could read it"
+  fi
+}
+
+tailscale_key_status() {
+  case "$(tailscale_authkey_source)" in
+    file) echo "key file" ;;
+    global) echo "global config TS_AUTHKEY (deprecated: visible to every app — move it with tailscale:set-key, then dokku config:unset --global TS_AUTHKEY)" ;;
+    *) echo "not set" ;;
+  esac
+}
+
 tailscale_up() {
   [[ -z "$APP" ]] && dokku_log_fail "Please specify an app to run the command on"
   verify_app_name "$APP"
 
-  local authkey="$(config_get --global TS_AUTHKEY)"
-  [[ -z "$authkey" ]] && dokku_log_fail "Set the TS_AUTHKEY with dokku config:set --global"
+  local authkey
+  authkey="$(tailscale_authkey)"
+  [[ -z "$authkey" ]] && dokku_log_fail "$(tailscale_authkey_missing_message)"
 
   # Tailscale will join the app container's network, and will advertise its
   # name to the tailnet as the hostname of the app container. By default, the
@@ -72,8 +172,9 @@ tailscale_attach() {
 
   ( ! tailscale_is_enabled ) && return
 
-  local authkey="$(config_get --global TS_AUTHKEY)"
-  [[ -z "$authkey" ]] && dokku_log_fail "Set the TS_AUTHKEY with dokku config:set --global"
+  local authkey
+  authkey="$(tailscale_authkey)"
+  [[ -z "$authkey" ]] && dokku_log_fail "$(tailscale_authkey_missing_message)"
 
   local login_arg=""
   local login_server="$(config_get --global TS_LOGIN_SERVER)"

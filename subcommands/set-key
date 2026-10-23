@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -eo pipefail
+[[ $DOKKU_TRACE ]] && set -x
+
+source "$PLUGIN_AVAILABLE_PATH/tailscale/functions"
+
+cmd-tailscale-set-key() {
+  declare desc="stores the tailscale auth key read from stdin"
+  declare cmd="tailscale:set-key"
+  [[ "$1" == "$cmd" ]] && shift 1
+
+  # Never trace this command: the key would end up in the trace output.
+  set +x
+  tailscale_set_key
+}
+
+cmd-tailscale-set-key "$@"

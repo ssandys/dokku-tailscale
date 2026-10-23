@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Security
+- The auth key no longer needs to live in Dokku global config, which Dokku
+  injects into every app container's environment (letting any app read a
+  reusable key that adds `tag:dokku` machines to the tailnet). It is now read
+  from `${DOKKU_LIB_ROOT}/data/tailscale/.authkey` (mode 600, dokku user only).
+  Global `TS_AUTHKEY` is still honoured as a fallback with a deprecation
+  warning. Migrate with `tailscale:set-key`, then
+  `dokku config:unset --global TS_AUTHKEY`, then rotate the old key.
+
+### Added
+- `tailscale:set-key` command: reads the auth key from stdin, validates the
+  `tskey-` prefix and writes the key file atomically with mode 600.
+- `tailscale:key-status` command: shows whether the key comes from the key
+  file, the deprecated global config, or is not set (never prints the key).
+
 ### Fixed
 - Compatibility with current Dokku (verified on 0.38.31): stop sourcing the
   removed `docker-options/functions` and `storage/functions` core libraries.
